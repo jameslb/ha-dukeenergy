@@ -45,16 +45,7 @@ async def async_setup_entry(
         ):
             entity_registry.async_remove(entity_id)
 
-        cost_unique_id = f"{meter_id}_total_cost"
-        if not coordinator.rate_provider.enabled(service_type):
-            if entity_id := entity_registry.async_get_entity_id(
-                "sensor", DOMAIN, cost_unique_id
-            ):
-                entity_registry.async_remove(entity_id)
-            continue
-
-        if serial_number in coordinator.data:
-            entities.append(DukeEnergyTotalCostSensor(coordinator, serial_number))
+        entities.append(DukeEnergyTotalCostSensor(coordinator, serial_number))
 
     async_add_entities(entities)
 
@@ -77,7 +68,7 @@ class DukeEnergyTotalCostSensor(CoordinatorEntity[DukeEnergyCoordinator], Sensor
         super().__init__(coordinator)
 
         self._serial_number = serial_number
-        meter = coordinator.data[serial_number]["meter"]
+        meter = coordinator.meters[serial_number]
         service_type = meter["serviceType"]
         service_name = service_type.capitalize()
         meter_id = f"{service_type.lower()}_{serial_number}"
@@ -93,6 +84,20 @@ class DukeEnergyTotalCostSensor(CoordinatorEntity[DukeEnergyCoordinator], Sensor
         )
 
     @property
-    def native_value(self) -> Decimal:
+    def available(self) -> bool:
+        """Return whether cost tracking is enabled for this service."""
+        meter = self.coordinator.meters[self._serial_number]
+        return super().available and self.coordinator.rate_provider.enabled(
+            meter["serviceType"]
+        )
+
+    @property
+    def native_value(self) -> Decimal | None:
         """Return cumulative usage cost."""
-        return self.coordinator.data[self._serial_number]["total_cost"]
+        if not self.available:
+            return None
+        if data := self.coordinator.data.get(self._serial_number):
+            return data["total_cost"]
+        meter = self.coordinator.meters[self._serial_number]
+        meter_id = f"{meter['serviceType'].lower()}_{self._serial_number}"
+        return self.coordinator.cost_ledger.total(meter_id)

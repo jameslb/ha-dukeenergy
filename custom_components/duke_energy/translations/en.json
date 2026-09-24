@@ -51,7 +51,7 @@
                 "menu_options": {
                     "electric": "Electric rates",
                     "gas": "Gas rates",
-                    "save": "Save and reload"
+                    "save": "Save changes"
                 },
                 "title": "Cost tracking"
             },

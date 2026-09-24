@@ -21,7 +21,7 @@ from homeassistant.config_entries import (
     SOURCE_RECONFIGURE,
     ConfigEntry,
     ConfigFlowResult,
-    OptionsFlowWithReload,
+    OptionsFlow,
 )
 from homeassistant.core import callback
 from homeassistant.helpers import aiohttp_client, selector
@@ -166,7 +166,7 @@ class DukeEnergyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_create_entry(title=email or user_id, data=data)
 
 
-class DukeEnergyOptionsFlow(OptionsFlowWithReload):
+class DukeEnergyOptionsFlow(OptionsFlow):
     """Configure Duke Energy cost tracking."""
 
     _working_options: dict[str, Any] | None = None
@@ -205,7 +205,7 @@ class DukeEnergyOptionsFlow(OptionsFlowWithReload):
     async def async_step_save(
         self, _user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Save options and reload the config entry."""
+        """Save cost-tracking options."""
         return self.async_create_entry(data=self._ensure_working_options())
 
     async def async_step_electric(

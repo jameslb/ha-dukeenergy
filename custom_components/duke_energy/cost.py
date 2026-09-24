@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -44,6 +45,14 @@ class CostStatisticsBatch:
     statistics: tuple[CostStatistic, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class CostLedgerSnapshot:
+    """Restorable in-memory state for an atomic options update."""
+
+    data: dict[str, Any]
+    dirty: bool
+
+
 class RateProvider(Protocol):
     """Provide usage rates by service and effective timestamp."""
 
@@ -63,6 +72,11 @@ class ManualRateProvider:
     def __init__(self, options: Mapping[str, Any]) -> None:
         """Initialize the manual rate provider."""
         self._configuration = options.get(CONF_COST_TRACKING, {})
+        for service_config in self._configuration.values():
+            for period in service_config.get(CONF_RATES, []):
+                date.fromisoformat(period[CONF_EFFECTIVE_DATE])
+                if period.get(CONF_RATE) is not None:
+                    Decimal(period[CONF_RATE])
 
     def enabled(self, service_type: str) -> bool:
         """Return whether cost tracking is enabled."""
@@ -121,6 +135,15 @@ class CostLedger:
                     datetime.fromisoformat(interval_key) for interval_key in intervals
                 ).isoformat()
                 self._dirty = True
+
+    def snapshot(self) -> CostLedgerSnapshot:
+        """Return a restorable copy of the in-memory ledger."""
+        return CostLedgerSnapshot(deepcopy(self._data), self._dirty)
+
+    def restore(self, snapshot: CostLedgerSnapshot) -> None:
+        """Restore a previously captured in-memory ledger state."""
+        self._data = snapshot.data
+        self._dirty = snapshot.dirty
 
     def total(self, meter_id: str) -> Decimal:
         """Return the persisted total for a meter."""

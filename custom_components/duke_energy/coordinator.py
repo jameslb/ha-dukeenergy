@@ -1,7 +1,9 @@
 """Coordinator to handle Duke Energy connections."""
 
+import asyncio
 import logging
 import math
+from collections.abc import Mapping
 from datetime import date, datetime, time, timedelta, tzinfo
 from decimal import Decimal
 from typing import Any, TypedDict, cast
@@ -76,6 +78,7 @@ class DukeEnergyCoordinator(DataUpdateCoordinator[dict[str, DukeEnergyCostData]]
         self.meters: dict[str, dict[str, Any]] = {}
         self.rate_provider = ManualRateProvider(config_entry.options)
         self.cost_ledger = CostLedger(hass, config_entry.entry_id)
+        self._cost_update_lock = asyncio.Lock()
 
         @callback
         def _dummy_listener() -> None:
@@ -92,6 +95,11 @@ class DukeEnergyCoordinator(DataUpdateCoordinator[dict[str, DukeEnergyCostData]]
 
     async def _async_update_data(self) -> dict[str, DukeEnergyCostData]:
         """Insert Duke Energy statistics."""
+        async with self._cost_update_lock:
+            return await self._async_update_data_locked()
+
+    async def _async_update_data_locked(self) -> dict[str, DukeEnergyCostData]:
+        """Insert statistics while holding the shared cost mutation lock."""
         cost_data: dict[str, DukeEnergyCostData] = {}
 
         try:
@@ -211,6 +219,84 @@ class DukeEnergyCoordinator(DataUpdateCoordinator[dict[str, DukeEnergyCostData]]
         await self.cost_ledger.async_save()
         return cost_data
 
+    async def async_apply_cost_options(self, options: Mapping[str, Any]) -> None:
+        """Apply cost options locally without refreshing Duke usage."""
+        new_provider = ManualRateProvider(options)
+
+        async with self._cost_update_lock:
+            previous_provider = self.rate_provider
+            ledger_snapshot = self.cost_ledger.snapshot()
+            cost_data: dict[str, DukeEnergyCostData] = {}
+            imports: list[tuple[dict[str, Any], str, str]] = []
+
+            try:
+                for serial_number, meter in self.meters.items():
+                    service_type = meter.get("serviceType")
+                    if service_type not in SUPPORTED_METER_TYPES:
+                        continue
+
+                    meter_id = f"{service_type.lower()}_{serial_number}"
+                    required_start = new_provider.earliest_rate_date(service_type)
+                    covered_from = self.cost_ledger.history_covered_from(meter_id)
+                    historical_usage: UsageData = {}
+                    completed_history_start: date | None = None
+
+                    if required_start is not None and (
+                        covered_from is None or covered_from > required_start
+                    ):
+                        history_end = (
+                            covered_from - timedelta(days=1)
+                            if covered_from is not None
+                            else dt_util.now().date() - timedelta(days=1)
+                        )
+                        fetched_usage = await self._async_get_historical_usage(
+                            meter,
+                            required_start,
+                            history_end,
+                        )
+                        if fetched_usage is not None:
+                            historical_usage = fetched_usage
+                            completed_history_start = required_start
+
+                    self.cost_ledger.reprice(
+                        meter_id,
+                        service_type,
+                        new_provider,
+                    )
+                    total_cost = self.cost_ledger.update(
+                        meter_id,
+                        service_type,
+                        historical_usage,
+                        new_provider,
+                    )
+                    if completed_history_start is not None:
+                        self.cost_ledger.mark_history_covered_from(
+                            meter_id,
+                            completed_history_start,
+                        )
+                    if new_provider.enabled(service_type):
+                        cost_data[serial_number] = DukeEnergyCostData(
+                            meter=meter,
+                            total_cost=total_cost,
+                        )
+                    imports.append((meter, serial_number, meter_id))
+
+                self.rate_provider = new_provider
+                await self.cost_ledger.async_save()
+            except Exception:
+                self.rate_provider = previous_provider
+                self.cost_ledger.restore(ledger_snapshot)
+                raise
+
+            for meter, serial_number, meter_id in imports:
+                await self._async_import_dirty_cost_statistics(
+                    meter,
+                    serial_number,
+                    meter_id,
+                )
+
+            self.async_set_updated_data(cost_data)
+
     async def _async_update_cost_statistics(
         self,
         meter: dict[str, Any],
@@ -221,7 +307,6 @@ class DukeEnergyCoordinator(DataUpdateCoordinator[dict[str, DukeEnergyCostData]]
     ) -> None:
         """Update a meter's cost ledger, sensor data, and statistics."""
         service_type = meter["serviceType"]
-        statistic_id = f"{DOMAIN}:{meter_id}_total_cost"
         required_start = self.rate_provider.earliest_rate_date(service_type)
         covered_from = self.cost_ledger.history_covered_from(meter_id)
         completed_history_start: date | None = None
@@ -261,9 +346,24 @@ class DukeEnergyCoordinator(DataUpdateCoordinator[dict[str, DukeEnergyCostData]]
                 total_cost=total_cost,
             )
 
+        await self._async_import_dirty_cost_statistics(
+            meter,
+            serial_number,
+            meter_id,
+        )
+
+    async def _async_import_dirty_cost_statistics(
+        self,
+        meter: dict[str, Any],
+        serial_number: str,
+        meter_id: str,
+    ) -> None:
+        """Queue the pending dirty cost-statistics range for one meter."""
         if (cost_batch := self.cost_ledger.cost_statistics(meter_id)) is None:
             return
 
+        service_type = meter["serviceType"]
+        statistic_id = f"{DOMAIN}:{meter_id}_total_cost"
         metadata = StatisticMetaData(
             mean_type=StatisticMeanType.NONE,
             has_sum=True,
@@ -308,11 +408,12 @@ class DukeEnergyCoordinator(DataUpdateCoordinator[dict[str, DukeEnergyCostData]]
         await get_instance(self.hass).async_block_till_done()
 
         if await self._async_cost_statistics_imported(statistic_id, batch):
-            self.cost_ledger.acknowledge_cost_statistics(
-                meter_id,
-                batch.dirty_from,
-            )
-            await self.cost_ledger.async_save()
+            async with self._cost_update_lock:
+                self.cost_ledger.acknowledge_cost_statistics(
+                    meter_id,
+                    batch.dirty_from,
+                )
+                await self.cost_ledger.async_save()
 
     async def _async_cost_statistics_imported(
         self,
