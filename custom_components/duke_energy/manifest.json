@@ -9,7 +9,7 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/hunterjm/ha-dukeenergy/issues",
   "requirements": [
-    "aiodukeenergy @ git+https://github.com/jameslb/aiodukeenergy.git@93314e04a2e2fd7ae175f38cfcaef56abfebc0b7"
+    "aiodukeenergy @ git+https://github.com/jameslb/aiodukeenergy.git@166e39069e40dcf08d6a7338ba45675d06dc0ed1"
   ],
-  "version": "0.3.0"
+  "version": "0.3.1"
 }
