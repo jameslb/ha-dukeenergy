@@ -1,14 +1,15 @@
 """Coordinator to handle Duke Energy connections."""
 
 import asyncio
+import hashlib
 import logging
 import math
 from collections.abc import Mapping
-from datetime import date, datetime, time, timedelta, tzinfo
+from datetime import UTC, date, datetime, time, timedelta, tzinfo
 from decimal import Decimal
 from typing import Any, TypedDict, cast
 
-from aiodukeenergy import DukeEnergy, DukeEnergyAuthError
+from aiodukeenergy import DukeEnergy, DukeEnergyAuthError, DukeEnergyBlockedError
 from aiohttp import ClientError
 from homeassistant.components.recorder import (
     get_instance,  # pyright: ignore[reportPrivateImportUsage]
@@ -27,7 +28,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfEnergy, UnitOfVolume
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 from homeassistant.util.unit_conversion import EnergyConverter, VolumeConverter
 
@@ -41,6 +42,11 @@ from .cost import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+_UPDATE_HOURS = (9, 14, 19)
+_UPDATE_JITTER_MINUTES = 120
+_BLOCKED_MESSAGE = "Duke Energy temporarily blocked the API request; will retry"
+_API_FAILED_MESSAGE = "Duke Energy API request failed; will retry"
 
 
 class DukeEnergyCostData(TypedDict):
@@ -70,15 +76,17 @@ class DukeEnergyCoordinator(DataUpdateCoordinator[dict[str, DukeEnergyCostData]]
             _LOGGER,
             config_entry=config_entry,
             name="Duke Energy",
-            # Data is updated daily on Duke Energy.
-            # Refresh every 12h to be at most 12h behind.
-            update_interval=timedelta(hours=12),
+            update_interval=timedelta(hours=6),
         )
         self.api = api
         self.meters: dict[str, dict[str, Any]] = {}
         self.rate_provider = ManualRateProvider(config_entry.options)
         self.cost_ledger = CostLedger(hass, config_entry.entry_id)
         self._cost_update_lock = asyncio.Lock()
+        self.status = "idle"
+        self.last_updated: datetime | None = None
+        self.last_changed: dict[str, datetime] = {}
+        self.next_update: datetime | None = None
 
         @callback
         def _dummy_listener() -> None:
@@ -95,10 +103,45 @@ class DukeEnergyCoordinator(DataUpdateCoordinator[dict[str, DukeEnergyCostData]]
 
     async def _async_update_data(self) -> dict[str, DukeEnergyCostData]:
         """Insert Duke Energy statistics."""
-        async with self._cost_update_lock:
-            return await self._async_update_data_locked()
+        await self._schedule_next_update()
+        self.status = "fetching"
+        self.async_update_listeners()
+        try:
+            async with self._cost_update_lock:
+                data = await self._async_update_data_locked()
+        except Exception:
+            self.status = "failed"
+            raise
+        self.status = "finished"
+        self.last_updated = datetime.now(UTC)
+        return data
 
-    async def _async_update_data_locked(self) -> dict[str, DukeEnergyCostData]:
+    async def _schedule_next_update(self) -> None:
+        """Schedule the next poll in a stable, distributed daytime window."""
+        timezone = await self._async_get_service_timezone()
+        now = dt_util.now(timezone)
+        for day_offset in (0, 1):
+            candidate_date = now.date() + timedelta(days=day_offset)
+            for hour in _UPDATE_HOURS:
+                seed = f"{self.config_entry.entry_id}:{candidate_date}:{hour}"
+                digest = hashlib.sha256(seed.encode()).digest()
+                jitter = (
+                    int.from_bytes(digest[:4], "big") % (_UPDATE_JITTER_MINUTES * 2 + 1)
+                    - _UPDATE_JITTER_MINUTES
+                )
+                candidate = datetime.combine(
+                    candidate_date,
+                    time(hour=hour),
+                    tzinfo=timezone,
+                ) + timedelta(minutes=jitter)
+                if candidate > now + timedelta(minutes=1):
+                    self.next_update = candidate
+                    self.update_interval = candidate - now
+                    return
+
+    async def _async_update_data_locked(  # noqa: PLR0912
+        self,
+    ) -> dict[str, DukeEnergyCostData]:
         """Insert statistics while holding the shared cost mutation lock."""
         cost_data: dict[str, DukeEnergyCostData] = {}
 
@@ -106,6 +149,10 @@ class DukeEnergyCoordinator(DataUpdateCoordinator[dict[str, DukeEnergyCostData]]
             meters: dict[str, dict[str, Any]] = await self.api.get_meters()
         except DukeEnergyAuthError as err:
             raise ConfigEntryAuthFailed from err
+        except DukeEnergyBlockedError as err:
+            raise UpdateFailed(_BLOCKED_MESSAGE) from err
+        except (TimeoutError, ClientError) as err:
+            raise UpdateFailed(_API_FAILED_MESSAGE) from err
         self.meters = meters
 
         for serial_number, meter in meters.items():
@@ -215,6 +262,10 @@ class DukeEnergyCoordinator(DataUpdateCoordinator[dict[str, DukeEnergyCostData]]
             async_add_external_statistics(
                 self.hass, consumption_metadata, consumption_statistics
             )
+            if consumption_statistics:
+                self.last_changed[serial_number] = max(
+                    statistic.start for statistic in consumption_statistics
+                )
 
         await self.cost_ledger.async_save()
         return cost_data
@@ -507,6 +558,8 @@ class DukeEnergyCoordinator(DataUpdateCoordinator[dict[str, DukeEnergyCostData]]
                 )
             except DukeEnergyAuthError as err:
                 raise ConfigEntryAuthFailed from err
+            except DukeEnergyBlockedError as err:
+                raise UpdateFailed(_BLOCKED_MESSAGE) from err
             except (TimeoutError, ClientError):
                 _LOGGER.warning(
                     "Historical usage fetch did not complete for meter %s "
@@ -582,6 +635,8 @@ class DukeEnergyCoordinator(DataUpdateCoordinator[dict[str, DukeEnergyCostData]]
                     )
                 except DukeEnergyAuthError as err:
                     raise ConfigEntryAuthFailed from err
+                except DukeEnergyBlockedError as err:
+                    raise UpdateFailed(_BLOCKED_MESSAGE) from err
 
                 usage = {**results["data"], **usage}
 

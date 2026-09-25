@@ -152,6 +152,24 @@
     "sensor": {
       "total_cost": {
         "name": "Total cost"
+      },
+      "last_updated": {
+        "name": "Last updated"
+      },
+      "last_changed": {
+        "name": "Last changed"
+      },
+      "next_update": {
+        "name": "Next scheduled update"
+      },
+      "status": {
+        "name": "Status",
+        "state": {
+          "idle": "Idle",
+          "fetching": "Fetching",
+          "finished": "Finished",
+          "failed": "Failed"
+        }
       }
     }
   }
