@@ -264,7 +264,7 @@ class DukeEnergyCoordinator(DataUpdateCoordinator[dict[str, DukeEnergyCostData]]
             )
             if consumption_statistics:
                 self.last_changed[serial_number] = max(
-                    statistic.start for statistic in consumption_statistics
+                    statistic["start"] for statistic in consumption_statistics
                 )
 
         await self.cost_ledger.async_save()
