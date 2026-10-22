@@ -5,19 +5,18 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from aiodukeenergy import DukeEnergy
 from aiohttp import ClientConnectionError, ClientResponseError
 from homeassistant.const import Platform
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import aiohttp_client, config_entry_oauth2_flow
 
-from .api import DukeEnergyAuth
+from .client_dependency import ClientUnavailableError, verify_installed_client
 from .const import DOMAIN
-from .coordinator import DukeEnergyConfigEntry, DukeEnergyCoordinator
-from .oauth import DukeEnergyOAuth2Implementation
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
+
+    from .coordinator import DukeEnergyConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -26,6 +25,22 @@ PLATFORMS = (Platform.SENSOR,)
 
 async def async_setup_entry(hass: HomeAssistant, entry: DukeEnergyConfigEntry) -> bool:
     """Set up Duke Energy from a config entry."""
+    if not hass.is_running:
+        message = "Waiting for Home Assistant startup before Duke setup"
+        raise ConfigEntryNotReady(message)
+
+    try:
+        await hass.async_add_executor_job(verify_installed_client)
+    except ClientUnavailableError as err:
+        raise ConfigEntryNotReady(str(err)) from err
+
+    # Never import or install an unverified replacement for the pinned client.
+    from aiodukeenergy import DukeEnergy  # noqa: PLC0415
+
+    from .api import DukeEnergyAuth  # noqa: PLC0415
+    from .coordinator import DukeEnergyCoordinator  # noqa: PLC0415
+    from .oauth import DukeEnergyOAuth2Implementation  # noqa: PLC0415
+
     # Register our OAuth implementation
     config_entry_oauth2_flow.async_register_implementation(
         hass,

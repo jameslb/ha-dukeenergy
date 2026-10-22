@@ -1,0 +1,14 @@
+{
+  "distribution": "aiodukeenergy",
+  "version": "1.1.0",
+  "repository": "https://github.com/jameslb/aiodukeenergy.git",
+  "commit": "ebb68991eb6b92950d9f4e9bd9978f71f173d32e",
+  "sha256": {
+    "aiodukeenergy/__init__.py": "3538af40edd02063363c345f3e931736fcd4dd141acbbc6dba52cafcb7ce4759",
+    "aiodukeenergy/auth0.py": "9b744d67eb9233b0a953d6abd1e59f8187906261a7dc83e7bfcea8e957633e08",
+    "aiodukeenergy/duke_auth.py": "d411ae9a0e9b704044669e93373ca9498d968f5928e8c568747a737083410f15",
+    "aiodukeenergy/dukeenergy.py": "f8a99eb67a3f94c19f99aa2ceb4883203b1edef5069a24e4fbcde0dd8c239c50",
+    "aiodukeenergy/exceptions.py": "771e41e11cb747e70341b9e2857fe2a22e23762c0baf142a70adbfd7357253d8",
+    "aiodukeenergy/py.typed": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}
