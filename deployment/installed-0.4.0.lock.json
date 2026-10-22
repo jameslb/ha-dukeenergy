@@ -1,0 +1,16 @@
+{
+  "version": "0.4.0",
+  "sha256": {
+    "__init__.py": "a659bbcb761cf9678ae008ba69a767fd4ba3a6081160d32811950ce978eef7d7",
+    "api.py": "03c6d03951652b8abfb092947ac01a935443ee8a8e7cc57f8870226bf6f318cf",
+    "config_flow.py": "1200361732b2231a8885a4e0fa185358e48cdafad76261fce8bc6aead1b2931e",
+    "const.py": "e2dd5639cc89aaf8966d2e71f1bc9d3daeeb268325b4274e5d5bdad99aef27ae",
+    "coordinator.py": "4b040a2eec390a9cd643c00af9e57969f738acd6b1154e69fdc6f73f2266a9d2",
+    "cost.py": "f136ef63e8fac496cde9d1076603d7fcbb7879c319d7cf497e2b3f77adb53ece",
+    "manifest.json": "0f31a3b589b9b06f05736a9c9d410bb7c49680487919ea9ea9b0a70ce6127a09",
+    "oauth.py": "584f1a2aafd39fc6f87aac3815d1189e2f5be32c176090b3ecb1f3316ca2b88d",
+    "sensor.py": "0c60caed3de13414e325faac9c26771f2cdefbcd41b08ca99b4124288734a3b3",
+    "strings.json": "1c18515894782b1c775a963ad5280ccaebbe78d47cd910c5a44bd67b53d02629",
+    "translations/en.json": "cf2b4911bff3c07ef0f05c3c2444c5565b7ad33b3f93eaee064c7462a12903a4"
+  }
+}

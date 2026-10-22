@@ -57,25 +57,18 @@ none changed. No restart, download, voice test or deployment occurred.
 These tests do not run HA 2026.10's actual retry scheduler, recorder database or
 Duke service. No startup-time reduction or live acceptance is claimed.
 
-## Deployment conditions and rollback — not executed
+## Read-only preflight completed; activation is not authorized
 
-Before any future approved deployment, perform a read-only verification of the
-actual installed client with this guard. The retained provenance matches the
-commit, but its full live file hashes/import location have not been checked by
-this candidate. Abort on mismatch; do not install, repair, relax verification,
-or fall back automatically. Verify transitive imports using the already-installed
-runtime, and retain the current integration files, settings and ledger unchanged.
+The October22 read-only preflight verified the actual installed client provenance,
+import path, six source hashes and network-disabled import. A reproducible local
+candidate and a download-free behavioral rollback now exist. See
+[the exact results, deployment steps and rollback scope](DEPLOYMENT_PREFLIGHT.md).
 
-Deploying requires separate approval for the exact bundle and any integration
-reload. Do not restart HA/its VM or repeat the locking maintenance for this
-candidate. If approved later, observe the actual HA retry event and truthful
-sensor availability without voice requests. Preserve the existing ledger and
-recorder; do not delete history, change unique IDs or trigger manual statistics
-rebuilds.
-
-The unchanged client and baseline 818c9ec remain available for rollback. Restoring
-its original URL requirement can invoke the package manager on reload; therefore
-an original-bundle rollback reload must not be run unattended under a no-download
-scope. Resolve that reload scope before deployment rather than after a failure.
-Matter's earlier internal startup failure remains unresolved; this correction
-does not claim to fix it or complete any Phase 5 physical gate.
+Correction to the earlier plan: a normal entry reload uses cached Python modules
+and cannot activate this source change. A separately approved Core-process
+self-restart would be needed; no restart is authorized or performed now. A legacy
+Duke backup inside the integration search path also needs reviewed relocation
+outside it before activation. The operational rollback retains the no-installer
+manifest and exact-client guard, rather than restoring the original URL-based
+manifest. No VM/host restart or forced stop is proposed. Deployment remains on
+hold for review, including the no-download scope of other startup integrations.

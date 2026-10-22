@@ -15,7 +15,9 @@ from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(
+    os.environ.get("DUKE_OFFLINE_BUNDLE_ROOT", Path(__file__).resolve().parents[1])
+)
 sys.path.insert(0, str(ROOT))
 
 
