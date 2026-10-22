@@ -6,8 +6,9 @@ import logging
 from typing import TYPE_CHECKING
 
 from aiodukeenergy import DukeEnergy
+from aiohttp import ClientConnectionError, ClientResponseError
 from homeassistant.const import Platform
-from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import aiohttp_client, config_entry_oauth2_flow
 
 from .api import DukeEnergyAuth
@@ -46,7 +47,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: DukeEnergyConfigEntry) -
 
     try:
         await session.async_ensure_token_valid()
-    except Exception as err:
+    except (TimeoutError, ClientConnectionError) as err:
+        message = "Duke Energy authentication service unavailable"
+        raise ConfigEntryNotReady(message) from err
+    except ClientResponseError as err:
+        if err.status not in (400, 401):
+            message = "Duke Energy authentication service temporarily unavailable"
+            raise ConfigEntryNotReady(message) from err
+        raise ConfigEntryAuthFailed from err
+    except (KeyError, ValueError) as err:
         raise ConfigEntryAuthFailed from err
 
     auth = DukeEnergyAuth(aiohttp_client.async_get_clientsession(hass), session)
