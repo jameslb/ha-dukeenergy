@@ -30,4 +30,4 @@ Each meter device also provides disabled-by-default diagnostic entities for:
 
 Enable these entities from the meter device page when troubleshooting. Temporary Duke CDN blocks, rate limits, and service outages are retried without discarding valid credentials; genuine token rejection still starts reauthentication.
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=hunterjm&repository=ha-dukeenergy&category=integration)
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=jameslb&repository=ha-dukeenergy&category=integration)
