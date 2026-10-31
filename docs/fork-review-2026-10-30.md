@@ -76,3 +76,4 @@ Integration: guidance/translation JSON and manifest are validated separately, an
 
 Client CI also identified pre-existing test portability issues: Windows lacked tzdata, and Python 3.14 changed the text of the expected invalid-day exception. Added a Windows-only development dependency and made the exception assertion version-independent; this does not change DAILY request behavior. Corrected test typing and matched the repository's pinned formatting tools.
 
+In the [corrected client CI run](https://github.com/jameslb/aiodukeenergy/actions/runs/41148428354), lint, the helper suite, commit checks, and 14 of 15 Python/platform jobs passed at review time. Windows Python 3.14 was still installing dependencies. Refer to the linked run for the final status.
