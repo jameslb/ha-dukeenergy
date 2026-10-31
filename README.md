@@ -11,11 +11,15 @@ In November 2025, Duke Energy migrated its API authentication to Auth0, which br
 1. Add this repository to HACS and install the integration.
 2. Restart Home Assistant.
 3. Add Duke Energy from **Settings > Devices & services**. Existing entries will prompt for reauthentication when needed.
-4. Select the Duke Energy login link shown by Home Assistant and sign in using a normal browser.
-5. After a successful login, Duke Energy redirects to a 404 page. This is expected.
-6. Copy the complete URL from that page's browser address bar and paste it into Home Assistant.
+4. Select the Duke Energy login link shown by Home Assistant and sign in.
+5. After a successful login, Duke Energy redirects to its mobile callback URL. A 404 page can appear; success requires `code` and `state` in the URL.
+6. Copy the complete callback URL from the browser address bar and paste it into Home Assistant. If using the [OAuth helper](https://github.com/jameslb/aiodukeenergy/tree/main/chrome-extension), select **Copy complete callback URL**, rather than the code-only button.
 
-No Chrome extension is required. Home Assistant stores the resulting OAuth tokens and refreshes them automatically until Duke Energy invalidates the refresh token.
+Some desktop browser logins now return `error=access_denied` even when the normal Duke website or app works. This is a rejected authorization, not the expected callback. The optional OAuth helper includes the workaround reported in [upstream PR 23](https://github.com/hunterjm/aiodukeenergy/pull/23): sending an iOS Safari User-Agent only to Duke's login domain. Review its permissions and instructions before installing it. Start a fresh Home Assistant sign-in after enabling the helper; an error URL cannot be exchanged for tokens.
+
+Keep callback URLs private and use them promptly in the same Home Assistant setup flow. State, nonce, PKCE, and token-signature validation remain enabled. Home Assistant stores the resulting OAuth tokens and refreshes them automatically until Duke Energy invalidates the refresh token.
+
+See the [fork review](docs/fork-review-2026-10-30.md) for adopted fixes and proposed follow-ups.
 
 ## Updates and diagnostics
 
