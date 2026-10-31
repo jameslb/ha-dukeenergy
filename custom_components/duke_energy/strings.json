@@ -3,11 +3,11 @@
     "step": {
       "user": {
         "title": "Sign in to Duke Energy",
-        "description": "Open [Duke Energy login]({authorization_url}) in a normal browser. After signing in, Duke Energy will show a 404 page. This is expected. Return here to continue. No Chrome extension is required."
+        "description": "Open [Duke Energy login]({authorization_url}) and sign in. Success returns a callback URL containing code and state; a 404 page may appear. If Duke returns access_denied, see the integration documentation for the optional OAuth helper, then start a fresh sign-in. Return here to continue."
       },
       "callback_url": {
         "title": "Paste callback URL",
-        "description": "Copy the COMPLETE URL from the browser address bar on the Duke Energy 404 page and paste it below.",
+        "description": "Paste the COMPLETE Duke callback URL containing code and state. Copy it from the browser address bar or use the OAuth helper's Copy complete callback URL button. Keep it private and use the same setup flow. A URL containing error=access_denied is a rejected login.",
         "data": {
           "callback_url": "Complete callback URL"
         }
@@ -40,7 +40,7 @@
       "default": "[%key:common::config_flow::create_entry::authenticated%]"
     },
     "error": {
-      "invalid_callback": "The callback URL could not be validated or exchanged. Copy the complete URL from the Duke Energy 404 page and try again."
+      "invalid_callback": "The callback URL could not be validated or exchanged. Copy the complete Duke callback URL containing code and state and try again. If it expired, start a fresh sign-in."
     }
   },
   "options": {
